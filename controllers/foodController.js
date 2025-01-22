@@ -7,8 +7,8 @@ const index = (req, res) => {
     const sql = 'SELECT * FROM `posts`';
 
     // eseguire la query
-    connection.query(sql, (err, results) => {
-        
+    connection.query(sql, (err, articles) => {
+
         // se trova errore mandare messaggio errore server sennò dare risultati richiesti
         if (err) {
             return res.status(500).json({
@@ -17,7 +17,7 @@ const index = (req, res) => {
         } else {
             return res.status(200).json({
                 status: 'Success!',
-                data: results
+                data: articles
             });
         };
     });
@@ -32,8 +32,19 @@ const show = (req, res) => {
     // preparare la query
     const sql = "SELECT * FROM `posts` WHERE id = ?";
 
+    // preparazione query per tags
+    const tagsSql = `
+        SELECT tags.*
+        FROM tags
+        INNER JOIN post_tag
+        ON post_tag.tag_id = tags.id
+        INNER JOIN posts
+        ON posts.id = post_tag.post_id
+        WHERE tags.id = ?
+    `;
+
     // eseguire la query
-    connection.query(sql, [id], (err, results) => {
+    connection.query(sql, [id], (err, articles) => {
         
         // se da errore mandare messaggio errore server
         if (err) {
@@ -41,15 +52,32 @@ const show = (req, res) => {
                 message: 'Errore interno del server'
             });
         };
-        // se non trova nulla mandare errore 404 sennò dare risultato richiesto
-        if (results.length === 0) {
-            return res.status(404).json({
-                message: 'Elemento richiesto non trovato'
-            });
+
+        // se non trova nulla mandare errore 404 sennò dare risultato richiesto sennò eseguire un'altra query
+         if (articles.length === 0) {
+             return res.status(404).json({
+                 message: 'Elemento richiesto non trovato'
+             });
         } else {
-            return res.status(200).json({
-                status: 'Success',
-                data: results[0]
+            connection.query(tagsSql, [id], (err, tags) => {
+                
+                // se da errore mandare messaggio errore server
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Errore interno del server'
+                    });
+                }
+
+                // creo oggetto con tutti i dati degli articoli + il risultato dei tag
+                const articleDetails = {
+                    ...articles[0],
+                    tags: tags
+                };
+                
+                return res.status(200).json({
+                    status: 'Success',
+                    data: articleDetails
+                });
             });
         };
     });    
